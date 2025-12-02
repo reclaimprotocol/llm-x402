@@ -1,36 +1,96 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# x402 zkTLS LLM Router
+An [OpenRouter](https://openrouter.ai) alternative, where you have guarantee that you are getting responses from the model you requested, and not a cheaper/smaller model. With proofs of correct model being called provided by [Reclaim Protocol](https://reclaimprotocol.org)
 
-## Getting Started
+You can pay for each request, without having to buy a subscription or credits using USDC on Base Network.
 
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Quickstart 
+### Installation
+Install the LLM x402 client
+```
+npm install @reclaimprotocol/llm-x402-client
+```
+### Usage
+```
+import { LLMClient } from '@reclaimprotocol/llm-x402-client';
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Call the LLM
+```
+    const client = new LLMClient({
+      apiUrl: "https://llm-x402.reclaimprotocol.org",
+      walletPrivateKey: process.env.X402_WALLET_PRIVATE_KEY,
+      network: 'base',
+    });
+    const result = await client.callLlm({
+      model,
+      messages: [
+        { role: 'user', content: message }
+      ],
+    });
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Wallet private key
+You can use a private key that you own on Base Network.
+If you don't own one, you can create one using 
+```
+npx create-wallet
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+You must then send USDC and some ETH to the above wallet. 
+Make sure you add the private key to your `.env.local` file 
+```
+X402_WALLET_PRIVATE_KEY=0x...
+```
 
-## Learn More
+### Models
+Currently supports Anthropic, OpenAI and Google (soon)
+You can see supported models on [Supported Models page](/supported-models)
 
-To learn more about Next.js, take a look at the following resources:
+## Self Hosting
+When initializing `LLMClient`, you can pass your own self hosted x402 server as `apiUrl`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+To self host,
+### Clone
+```
+$ git clone // this repository
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Env variables
+Set these in the `.env` file
+```
+# API Keys for LLM Providers
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-proj-...
+GOOGLE_API_KEY=AI...
 
-## Deploy on Vercel
+# x402 Payment Configuration
+X402_WALLET_ADDRESS=0x...
+X402_NETWORK=base
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# CDP API Keys for mainnet facilitator
+CDP_API_KEY_ID=...
+CDP_API_KEY_SECRET=...
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# Reclaim Protocol zkFetch Configuration
+RECLAIM_APP_ID=...
+RECLAIM_APP_SECRET=...
+```
+#### Where to get the API Keys
+LLM API Keys :
+- [`ANTHROPIC_API_KEY`](https://console.anthropic.com/settings/keys)
+- [`OPENAI_API_KEY`](https://platform.openai.com/settings/)
+- [`GOOGLE_API_KEY`](https://aistudio.google.com/app/api-keys)
+
+Payment configuration
+- [`X402_WALLET_ADDRESS`](https://ethereum.org/wallets/) 
+
+CDP API Keys
+- [`CDP_API_KEY_ID` & `CDP_API_KEY_SECRET`](https://portal.cdp.coinbase.com/projects/overview)
+
+Reclaim API Keys
+- [`RECLAIM_APP_ID` and `RECLAIM_APP_SECRET`](https://dev.reclaimprotocol.org)
+
+#### Run it
+```
+$ npm run build && npm run start
+```

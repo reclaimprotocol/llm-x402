@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withX402Payment } from '@/lib/x402';
+import { ReclaimClient } from '@reclaimprotocol/zk-fetch';
+
 
 // API endpoints
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -45,6 +47,16 @@ function getProvider(model: string): 'anthropic' | 'openai' | 'google' {
   return 'openai';
 }
 
+// Utility function to decode chunked transfer encoding
+function decodeChunkedResponse(chunkedData: string): string {
+  // Remove chunk size markers (hex number + \r\n)
+  // and trailing \r\n markers
+  return chunkedData
+    .replace(/^[0-9a-fA-F]+\r\n/, '') // Remove initial chunk size
+    .replace(/\r\n0\r\n\r\n$/, '') // Remove final chunk marker
+    .replace(/\r\n[0-9a-fA-F]+\r\n/g, ''); // Remove any intermediate chunk markers
+}
+
 // Handle Anthropic API calls
 async function callAnthropic(request: ChatCompletionRequest) {
   const { messages, temperature, max_tokens, top_p, stream } = request;
@@ -69,106 +81,37 @@ async function callAnthropic(request: ChatCompletionRequest) {
     stream: stream || false,
   };
 
-  const response = await fetch(ANTHROPIC_API_URL, {
+  // Use zkFetch for Anthropic API calls with zero-knowledge proofs
+  const reclaimClient = new ReclaimClient(
+    process.env.RECLAIM_APP_ID || '',
+    process.env.RECLAIM_APP_SECRET || ''
+  );
+
+  const publicOptions = {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY || '',
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify(requestBody),
-  });
+  };
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`Anthropic API error: ${JSON.stringify(error)}`);
-  }
+  const privateOptions = {
+    headers: {
+      'x-api-key': process.env.ANTHROPIC_API_KEY || '',
+    },
+  };
 
-  if (stream) {
-    // Handle streaming response
-    const encoder = new TextEncoder();
-    const reader = response.body?.getReader();
+  const proof = await reclaimClient.zkFetch(
+    ANTHROPIC_API_URL,
+    publicOptions,
+    privateOptions
+  );
 
-    if (!reader) {
-      throw new Error('Stream reader not available');
-    }
-
-    const readableStream = new ReadableStream({
-      async start(controller) {
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6);
-                if (data === '[DONE]') continue;
-
-                try {
-                  const parsed = JSON.parse(data);
-
-                  if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-                    const chunk = {
-                      id: parsed.id || 'chatcmpl-' + Date.now(),
-                      object: 'chat.completion.chunk',
-                      created: Math.floor(Date.now() / 1000),
-                      model: request.model,
-                      choices: [{
-                        index: 0,
-                        delta: { content: parsed.delta.text },
-                        finish_reason: null,
-                      }],
-                    };
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
-                  } else if (parsed.type === 'message_stop') {
-                    const chunk = {
-                      id: parsed.id || 'chatcmpl-' + Date.now(),
-                      object: 'chat.completion.chunk',
-                      created: Math.floor(Date.now() / 1000),
-                      model: request.model,
-                      choices: [{
-                        index: 0,
-                        delta: {},
-                        finish_reason: 'stop',
-                      }],
-                    };
-                    controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
-                    controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-                  }
-                } catch (e) {
-                  console.error('Error parsing SSE data:', e);
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Streaming error:', error);
-          controller.error(error);
-        } finally {
-          controller.close();
-        }
-      },
-    });
-
-    return new NextResponse(readableStream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    });
-  }
-
-  // Non-streaming response
-  const data = await response.json();
+  // Extract and decode the response from the proof
+  const rawData = proof?.extractedParameterValues?.data || '';
+  const cleanedData = decodeChunkedResponse(rawData);
+  const data = JSON.parse(cleanedData);
   const textContent = data.content.find((c: any) => c.type === 'text');
 
   return NextResponse.json({
@@ -189,12 +132,13 @@ async function callAnthropic(request: ChatCompletionRequest) {
       completion_tokens: data.usage.output_tokens,
       total_tokens: data.usage.input_tokens + data.usage.output_tokens,
     },
+    proof
   });
 }
 
 // Handle OpenAI API calls
 async function callOpenAI(request: ChatCompletionRequest) {
-  const { messages, temperature, max_tokens, top_p, frequency_penalty, presence_penalty, stream } = request;
+  const { messages, temperature, max_tokens, top_p, frequency_penalty, presence_penalty } = request;
   const modelId = request.model.includes('/') ? request.model.split('/')[1] : request.model;
 
   const requestBody = {
@@ -205,89 +149,49 @@ async function callOpenAI(request: ChatCompletionRequest) {
     top_p,
     frequency_penalty,
     presence_penalty,
-    stream: stream || false,
   };
 
-  const response = await fetch(OPENAI_API_URL, {
+  // Use zkFetch for OpenAI API calls with zero-knowledge proofs
+  const reclaimClient = new ReclaimClient(
+    process.env.RECLAIM_APP_ID || '',
+    process.env.RECLAIM_APP_SECRET || ''
+  );
+
+  const publicOptions = {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
     },
     body: JSON.stringify(requestBody),
+  };
+
+  const privateOptions = {
+    headers: {
+      'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+    },
+  };
+
+  const proof = await reclaimClient.zkFetch(
+    OPENAI_API_URL,
+    publicOptions,
+    privateOptions
+  );
+
+  console.log('OpenAI Proof:', proof);
+  // Extract and decode the response from the proof
+  const rawData = proof?.extractedParameterValues?.data || '';
+  const cleanedData = decodeChunkedResponse(rawData);
+  const data = JSON.parse(cleanedData);
+
+  return NextResponse.json({
+    ...data,
+    proof
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`OpenAI API error: ${JSON.stringify(error)}`);
-  }
-
-  if (stream) {
-    // Handle streaming response
-    const encoder = new TextEncoder();
-    const reader = response.body?.getReader();
-
-    if (!reader) {
-      throw new Error('Stream reader not available');
-    }
-
-    const readableStream = new ReadableStream({
-      async start(controller) {
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6);
-                if (data === '[DONE]') {
-                  controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-                  continue;
-                }
-
-                try {
-                  const parsed = JSON.parse(data);
-                  controller.enqueue(encoder.encode(`data: ${JSON.stringify(parsed)}\n\n`));
-                } catch (e) {
-                  console.error('Error parsing SSE data:', e);
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Streaming error:', error);
-          controller.error(error);
-        } finally {
-          controller.close();
-        }
-      },
-    });
-
-    return new NextResponse(readableStream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    });
-  }
-
-  // Non-streaming response
-  const data = await response.json();
-  return NextResponse.json(data);
 }
 
 // Handle Google Gemini API calls
 async function callGoogle(request: ChatCompletionRequest) {
-  const { messages, temperature, max_tokens, top_p, stream } = request;
+  const { messages, temperature, max_tokens, top_p } = request;
   const modelId = request.model.includes('/') ? request.model.split('/')[1] : request.model;
 
   // Convert messages to Google format
@@ -314,110 +218,38 @@ async function callGoogle(request: ChatCompletionRequest) {
     };
   }
 
-  const endpoint = stream
-    ? `${GOOGLE_API_URL}/${modelId}:streamGenerateContent?key=${process.env.GOOGLE_API_KEY}`
-    : `${GOOGLE_API_URL}/${modelId}:generateContent?key=${process.env.GOOGLE_API_KEY}`;
+  // Use zkFetch for Google API calls with zero-knowledge proofs
+  const reclaimClient = new ReclaimClient(
+    process.env.RECLAIM_APP_ID || '',
+    process.env.RECLAIM_APP_SECRET || ''
+  );
 
-  const response = await fetch(endpoint, {
+  const endpoint = `${GOOGLE_API_URL}/${modelId}:generateContent`;
+
+  const publicOptions = {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(requestBody),
-  });
+  };
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`Google API error: ${JSON.stringify(error)}`);
-  }
+  const privateOptions = {
+    headers: {
+      'x-goog-api-key': process.env.GOOGLE_API_KEY || '',
+    },
+  };
 
-  if (stream) {
-    // Handle streaming response
-    const encoder = new TextEncoder();
-    const reader = response.body?.getReader();
+  const proof = await reclaimClient.zkFetch(
+    endpoint,
+    publicOptions,
+    privateOptions
+  );
 
-    if (!reader) {
-      throw new Error('Stream reader not available');
-    }
-
-    const readableStream = new ReadableStream({
-      async start(controller) {
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-
-            for (const line of lines) {
-              if (line.trim()) {
-                try {
-                  const parsed = JSON.parse(line);
-
-                  if (parsed.candidates && parsed.candidates[0]?.content?.parts) {
-                    const text = parsed.candidates[0].content.parts[0]?.text || '';
-
-                    if (text) {
-                      const chunk = {
-                        id: 'chatcmpl-' + Date.now(),
-                        object: 'chat.completion.chunk',
-                        created: Math.floor(Date.now() / 1000),
-                        model: request.model,
-                        choices: [{
-                          index: 0,
-                          delta: { content: text },
-                          finish_reason: null,
-                        }],
-                      };
-                      controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
-                    }
-                  }
-                } catch (e) {
-                  console.error('Error parsing streaming data:', e);
-                }
-              }
-            }
-          }
-
-          // Send final chunk
-          const finalChunk = {
-            id: 'chatcmpl-' + Date.now(),
-            object: 'chat.completion.chunk',
-            created: Math.floor(Date.now() / 1000),
-            model: request.model,
-            choices: [{
-              index: 0,
-              delta: {},
-              finish_reason: 'stop',
-            }],
-          };
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(finalChunk)}\n\n`));
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-        } catch (error) {
-          console.error('Streaming error:', error);
-          controller.error(error);
-        } finally {
-          controller.close();
-        }
-      },
-    });
-
-    return new NextResponse(readableStream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    });
-  }
-
-  // Non-streaming response
-  const data = await response.json();
+  // Extract and decode the response from the proof
+  const rawData = proof?.extractedParameterValues?.data || '';
+  const cleanedData = decodeChunkedResponse(rawData);
+  const data = JSON.parse(cleanedData);
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
   return NextResponse.json({
@@ -438,6 +270,7 @@ async function callGoogle(request: ChatCompletionRequest) {
       completion_tokens: data.usageMetadata?.candidatesTokenCount || 0,
       total_tokens: data.usageMetadata?.totalTokenCount || 0,
     },
+    proof
   });
 }
 

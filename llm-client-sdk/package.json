@@ -1,0 +1,45 @@
+{
+  "name": "llm-client-x402",
+  "version": "1.0.0",
+  "description": "Client SDK for x402-powered LLM API with automatic payment handling",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "create-wallet": "./dist/scripts/create-wallet.js"
+  },
+  "scripts": {
+    "postinstall": "node dist/scripts/postinstall.js",
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "test": "node dist/test.js"
+  },
+  "keywords": [
+    "llm",
+    "x402",
+    "payment",
+    "ethereum",
+    "openai",
+    "anthropic",
+    "claude",
+    "gemini"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@coinbase/x402": "^0.7.3",
+    "@tailwindcss/typography": "^0.5.19",
+    "axios": "^1.13.2",
+    "ethers": "^6.13.4",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1",
+    "viem": "^2.40.4",
+    "x402-axios": "^0.7.2",
+    "x402-next": "^0.7.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}
