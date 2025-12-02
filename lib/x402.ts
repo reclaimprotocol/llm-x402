@@ -26,9 +26,6 @@ export function withX402Payment(
   handler: (req: NextRequest) => Promise<NextResponse>,
   config: {
     price: string;
-    description: string;
-    inputSchema?: object;
-    outputSchema?: object;
   }
 ) {
   // Use x402-next wrapper which is designed for Next.js
@@ -38,7 +35,6 @@ export function withX402Payment(
     {
       price: config.price,
       network: X402_CONFIG.network,
-      description: config.description,
     },
     facilitatorConfig // Use CDP Coinbase facilitator with auth
   );
