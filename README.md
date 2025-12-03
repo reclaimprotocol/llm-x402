@@ -39,6 +39,8 @@ npx create-wallet
 You must then send USDC and some ETH to the above wallet. 
 Make sure you add the private key to your `.env.local` file 
 ```
+LLM_API_URL=https://llm-x402.reclaimprotocol.org/api/call-llm
+X402_NETWORK=base
 X402_WALLET_PRIVATE_KEY=0x...
 ```
 
@@ -52,7 +54,7 @@ When initializing `LLMClient`, you can pass your own self hosted x402 server as 
 To self host,
 ### Clone
 ```
-$ git clone // this repository
+$ git clone https://github.com/reclaimprotocol/llm-x402.git
 ```
 
 ### Env variables

@@ -21,10 +21,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Initialize the LLM client
+    console.log('🔧 Initializing LLM Client...', {
+      apiUrl: process.env.LLM_API_URL,
+      network: process.env.X402_NETWORK,
+    });
     const client = new LLMClient({
       apiUrl: process.env.LLM_API_URL,
       walletPrivateKey: process.env.X402_WALLET_PRIVATE_KEY,
-      network: 'base',
+      network: process.env.X402_NETWORK as 'base' | 'base-sepolia' || 'base',
     });
 
     console.log('🔑 Wallet:', client.getWalletAddress());
