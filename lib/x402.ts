@@ -19,6 +19,8 @@ console.log('🔧 x402 Configuration:', {
   network: X402_CONFIG.network,
   facilitator: facilitatorConfig.url,
   cdpAuth: !!process.env.CDP_API_KEY_ID,
+  cdpKeyId: process.env.CDP_API_KEY_ID?.substring(0, 8) + '...',
+  cdpKeySecret: process.env.CDP_API_KEY_SECRET ? '***SET***' : '***MISSING***',
 });
 
 // Use x402-next wrapper for Next.js

@@ -39,7 +39,7 @@ export class LLMClient {
     });
 
     // Create axios client with x402 payment interceptor
-    // Note: viem WalletClient is compatible with x402-axios at runtime
+    // x402-axios expects a viem wallet client
     this.axiosClient = withPaymentInterceptor(
       axios.create({
         baseURL: this.apiUrl,
@@ -58,7 +58,11 @@ export class LLMClient {
    */
   async callLlm(request: LLMRequest): Promise<LLMResponse> {
     try {
-      console.log('🚀 Making LLM API call...');
+      console.log('🚀 Making LLM API call...', {
+        apiUrl: this.apiUrl,
+        network: this.network,
+        wallet: this.account.address,
+      });
 
       // Make the request - x402-axios will automatically:
       // 1. Send the initial request
@@ -70,7 +74,14 @@ export class LLMClient {
       console.log('✅ LLM API call successful');
 
       return response.data as LLMResponse;
-    } catch (error) {
+    } catch (error: any) {
+      console.error('❌ LLM API call failed:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+      });
+
       if (error instanceof Error) {
         throw new Error(`Failed to call LLM API: ${error.message}`);
       }
