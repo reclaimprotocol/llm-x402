@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { LLMClient } from 'llm-client-x402';
+import { LLMClient } from '@reclaimprotocol/llm-x402-client';
 
 export async function POST(req: NextRequest) {
   try {
