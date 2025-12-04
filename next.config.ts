@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['koffi', '@reclaimprotocol/zk-fetch'],
+  serverExternalPackages: ['@reclaimprotocol/zk-fetch'],
   env: {
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
