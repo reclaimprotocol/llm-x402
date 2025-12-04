@@ -47,14 +47,15 @@ function getProvider(model: string): 'anthropic' | 'openai' | 'google' {
   return 'openai';
 }
 
-// Utility function to decode chunked transfer encoding
+// Utility function to decode chunked transfer encoding and clean zkFetch artifacts
 function decodeChunkedResponse(chunkedData: string): string {
   // Remove chunk size markers (hex number + \r\n)
-  // and trailing \r\n markers
+  // and trailing \r\n markers and zkFetch regex capture artifacts
   return chunkedData
     .replace(/^[0-9a-fA-F]+\r\n/, '') // Remove initial chunk size
     .replace(/\r\n0\r\n\r\n$/, '') // Remove final chunk marker
-    .replace(/\r\n[0-9a-fA-F]+\r\n/g, ''); // Remove any intermediate chunk markers
+    .replace(/\r\n[0-9a-fA-F]+\r\n/g, '') // Remove any intermediate chunk markers
+    .replace(/\*+$/, ''); // Remove trailing asterisks from regex capture
 }
 
 // Handle Anthropic API calls
@@ -109,6 +110,7 @@ async function callAnthropic(request: ChatCompletionRequest) {
     privateOptions
   );
 
+  console.log('Anthropic Proof:', proof);
   // Extract and decode the response from the proof
   const rawData = proof?.extractedParameterValues?.data || '';
   const cleanedData = decodeChunkedResponse(rawData);
