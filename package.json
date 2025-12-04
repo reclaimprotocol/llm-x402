@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@coinbase/x402": "^0.7.3",
-    "@reclaimprotocol/zk-fetch": "^0.7.0",
+    "@reclaimprotocol/zk-fetch": "^0.8.0",
     "@tailwindcss/typography": "^0.5.19",
     "highlight.js": "^11.11.1",
     "next": "16.0.6",

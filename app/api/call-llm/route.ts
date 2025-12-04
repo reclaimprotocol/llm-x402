@@ -89,6 +89,7 @@ async function callAnthropic(request: ChatCompletionRequest) {
 
   const publicOptions = {
     method: 'POST',
+    useTee: true,
     headers: {
       'Content-Type': 'application/json',
       'anthropic-version': '2023-06-01',
